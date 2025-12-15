@@ -1,65 +1,83 @@
 <?php
-
 namespace App\Http\Controllers;
 
 use App\Models\Student;
+use App\Models\Course;
 use Illuminate\Http\Request;
 
 class StudentController extends Controller
 {
-    /**
-     * Display a listing of the resource.
-     */
     public function index()
     {
-        //
+        $students = Student::latest()->paginate(10);
+        return view('students.index', compact('students'));
     }
 
-    /**
-     * Show the form for creating a new resource.
-     */
     public function create()
     {
-        //
+        return view('students.create');
     }
 
-    /**
-     * Store a newly created resource in storage.
-     */
     public function store(Request $request)
     {
-        //
+        $data = $request->validate([
+            'name' => 'required|string|max:255',
+            'email' => 'required|email|unique:students,email',
+            'matricNo' => 'required|string|unique:students,matricNo',
+        ]);
+
+        Student::create($data);
+        return redirect()->route('students.index')->with('success', 'Student created.');
     }
 
-    /**
-     * Display the specified resource.
-     */
     public function show(Student $student)
     {
-        //
+        $student->load('courses');
+        $courses = Course::orderBy('courseName')->get(); // for enroll dropdown
+        return view('students.show', compact('student','courses'));
     }
 
-    /**
-     * Show the form for editing the specified resource.
-     */
     public function edit(Student $student)
     {
-        //
+        return view('students.edit', compact('student'));
     }
 
-    /**
-     * Update the specified resource in storage.
-     */
     public function update(Request $request, Student $student)
     {
-        //
+        $data = $request->validate([
+            'name' => 'required|string|max:255',
+            'email' => 'required|email|unique:students,email,' . $student->id,
+            'matricNo' => 'required|string|unique:students,matricNo,' . $student->id,
+        ]);
+
+        $student->update($data);
+        return redirect()->route('students.index')->with('success', 'Student updated.');
     }
 
-    /**
-     * Remove the specified resource from storage.
-     */
     public function destroy(Student $student)
     {
-        //
+        $student->delete();
+        return redirect()->route('students.index')->with('success', 'Student deleted.');
+    }
+
+    // Q9: enroll (attach/sync)
+    public function enroll(Request $request, Student $student)
+    {
+        $data = $request->validate([
+            'course_id' => 'required|exists:courses,id',
+        ]);
+
+        // attach (safe because we also added unique constraint in pivot)
+        $student->courses()->syncWithoutDetaching([$data['course_id']]);
+
+        return back()->with('success', 'Course enrolled.');
+    }
+
+    // Q9: remove enrollment (detach)
+    public function drop(Student $student, Course $course)
+    {
+        $student->courses()->detach($course->id);
+        return back()->with('success', 'Course removed.');
     }
 }
+
